@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GPU Value Iteration for Perishable Inventory: Reading, Typos and Reproduction</title>
+<style>
+:root{
+  --bg:#FFFFFF;--panel:#F6F7F9;--ink:#1A1E24;--muted:#5A6371;--rule:#E1E4E9;
+  --green:#1D7A4B;--green-bg:#EAF5EE;
+  --blue:#1E5DAA;--blue-bg:#EAF1FA;
+  --orange:#BF5217;--orange-bg:#FCEFE6;
+  --yellow:#8A6200;--yellow-bg:#FFF6D9;
+  --red:#B3261E;--red-bg:#FCEBEA;
+  --paper:#9AA3AE;--ours:#1E5DAA;--sold:#7FA7DA;
+  --serif:"Songti SC","Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Segoe UI",Roboto,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15181C;--panel:#1C2026;--ink:#E6E9ED;--muted:#9CA5B0;--rule:#2D333B;
+    --green:#5CC48D;--green-bg:#15261D;--blue:#7DABEE;--blue-bg:#162133;
+    --orange:#F0995F;--orange-bg:#2C1C12;--yellow:#E2BB4E;--yellow-bg:#29230F;
+    --red:#F2877F;--red-bg:#2E1716;--paper:#6E7884;--ours:#7DABEE;--sold:#3E6BA6;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15181C;--panel:#1C2026;--ink:#E6E9ED;--muted:#9CA5B0;--rule:#2D333B;
+  --green:#5CC48D;--green-bg:#15261D;--blue:#7DABEE;--blue-bg:#162133;
+  --orange:#F0995F;--orange-bg:#2C1C12;--yellow:#E2BB4E;--yellow-bg:#29230F;
+  --red:#F2877F;--red-bg:#2E1716;--paper:#6E7884;--ours:#7DABEE;--sold:#3E6BA6;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px);scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.75;-webkit-text-size-adjust:100%}
+img,svg{max-width:100%}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:3px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+.prose{max-width:720px}
+h1,h2,h3{font-family:var(--serif);font-weight:700;line-height:1.3;letter-spacing:.01em}
+h1{font-size:clamp(28px,4.6vw,44px);margin:0 0 12px}
+h2{font-size:clamp(24px,3.4vw,32px);margin:0}
+h3{font-size:20px;margin:40px 0 10px}
+p{margin:0 0 14px}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.m{font-family:"Times New Roman",Georgia,serif;font-style:italic;white-space:nowrap}
+.m .u{font-style:normal}
+
+/* nav */
+nav.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--rule)}
+nav.top .wrap{display:flex;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none}
+nav.top .wrap::-webkit-scrollbar{display:none}
+nav.top a{flex:none;text-decoration:none;color:var(--muted);padding:14px 12px;font-size:15px;border-bottom:2px solid transparent}
+nav.top a.on{color:var(--ink);border-bottom-color:var(--ink)}
+nav.top .brand{font-family:var(--serif);color:var(--ink);font-weight:700;margin-right:8px;padding-left:0}
+
+/* hero */
+header.hero{padding:56px 0 40px;border-bottom:1px solid var(--rule)}
+.cite{font-size:14px;color:var(--muted);margin-bottom:26px}
+.zh-title{font-family:var(--serif);font-size:clamp(18px,2.4vw,22px);color:var(--muted);margin:0 0 28px}
+.chain{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:0 0 36px;padding:0;list-style:none;counter-reset:c}
+.chain li{position:relative;padding:12px 18px 12px 0;border-top:3px solid var(--ink);font-size:15px;counter-increment:c}
+.chain li::before{content:counter(c);display:block;font-family:var(--serif);font-size:13px;color:var(--muted)}
+.chain li b{display:block;font-size:17px}
+@media (max-width:640px){.chain{grid-template-columns:1fr 1fr}}
+
+.ledger{width:100%;border-collapse:collapse;font-size:15px}
+.ledger caption{text-align:left;font-family:var(--serif);font-size:18px;font-weight:700;padding-bottom:8px}
+.ledger th,.ledger td{text-align:left;padding:9px 10px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.ledger th{font-weight:600;color:var(--muted);font-size:13px}
+.st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:13px;white-space:nowrap}
+.st.ok{background:var(--green-bg);color:var(--green)}
+.st.fix{background:var(--yellow-bg);color:var(--yellow)}
+.st.near{background:var(--blue-bg);color:var(--blue)}
+.st.no{background:var(--red-bg);color:var(--red)}
+
+/* sections */
+section.part{padding:64px 0 24px;border-bottom:1px solid var(--rule)}
+.part-head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px}
+.part-head .n{font-family:var(--serif);font-size:56px;line-height:1;color:var(--rule);font-weight:700}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .part-head .n{color:#3A414B}}
+
+/* cards: green=直觉 blue=公式 orange=例子 yellow=记住 red=typo */
+.card{border-left:3px solid;padding:14px 18px;margin:18px 0;border-radius:0 6px 6px 0}
+.card>.lab{font-size:13px;font-weight:600;margin-bottom:4px;display:block}
+.card p:last-child{margin-bottom:0}
+.g{border-color:var(--green);background:var(--green-bg)} .g>.lab{color:var(--green)}
+.b{border-color:var(--blue);background:var(--blue-bg)} .b>.lab{color:var(--blue)}
+.o{border-color:var(--orange);background:var(--orange-bg)} .o>.lab{color:var(--orange)}
+.y{border-color:var(--yellow);background:var(--yellow-bg)} .y>.lab{color:var(--yellow)}
+.r{border-color:var(--red);background:var(--red-bg)} .r>.lab{color:var(--red)}
+.eq{font-family:"Times New Roman",Georgia,serif;font-size:19px;text-align:center;padding:8px 0;overflow-x:auto;white-space:nowrap}
+.eq i{font-style:italic}
+.op{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;line-height:1;margin:0 3px}
+.op small{font-size:12px;font-style:italic;margin-top:2px}
+
+/* widgets */
+.widget{border:1px solid var(--rule);border-radius:10px;padding:20px;margin:22px 0;background:var(--bg)}
+.widget h4{margin:0 0 4px;font-family:var(--serif);font-size:18px}
+.widget .sub{color:var(--muted);font-size:14px;margin-bottom:14px}
+.ctrls{display:flex;flex-wrap:wrap;gap:14px 28px;margin-bottom:14px;font-size:15px}
+.ctrls label{display:flex;align-items:center;gap:10px}
+.ctrls input[type=range]{width:150px;accent-color:var(--ink)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--rule);border-radius:6px}
+.stepper button{border:0;background:none;color:var(--ink);width:30px;height:30px;font-size:17px;cursor:pointer}
+.stepper span{min-width:22px;text-align:center}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:none;color:var(--muted);padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.readout{font-size:15px;background:var(--panel);border-radius:6px;padding:10px 14px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.t{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+table.t th,table.t td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule);text-align:left;white-space:nowrap}
+table.t th{color:var(--muted);font-weight:600;font-size:13px}
+td.hit{color:var(--green);font-weight:600} td.miss{color:var(--red)} td.warn{color:var(--yellow);font-weight:600}
+
+/* typo cards */
+.typo{border:1px solid var(--rule);border-radius:10px;margin:18px 0;overflow:hidden}
+.typo-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:14px 18px;border-bottom:1px solid var(--rule)}
+.typo-h h4{margin:0;font-family:var(--serif);font-size:18px}
+.typo-h .where{font-size:13px;color:var(--muted);white-space:nowrap}
+.typo-b{display:grid;grid-template-columns:1fr 1fr}
+.typo-b>div{padding:14px 18px}
+.typo-b .was{background:var(--red-bg)}
+.typo-b .now{background:var(--green-bg)}
+.typo-b .k{font-size:13px;font-weight:600;display:block;margin-bottom:4px}
+.typo-b .was .k{color:var(--red)} .typo-b .now .k{color:var(--green)}
+.typo-why{padding:12px 18px;font-size:15px;color:var(--muted);border-top:1px solid var(--rule)}
+@media (max-width:640px){.typo-b{grid-template-columns:1fr}}
+s.bad{text-decoration-color:var(--red);text-decoration-thickness:2px}
+
+ol.flow{list-style:none;padding:0;margin:20px 0;counter-reset:f}
+ol.flow li{counter-increment:f;display:grid;grid-template-columns:40px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--rule)}
+ol.flow li::before{content:counter(f);font-family:var(--serif);font-size:22px;font-weight:700;color:var(--muted);line-height:1.3}
+ol.flow b{display:block}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--panel);padding:1px 5px;border-radius:4px}
+pre{background:var(--panel);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;padding:0}
+
+details.quiz{border:1px solid var(--rule);border-radius:8px;margin:12px 0;background:var(--bg)}
+details.quiz summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none}
+details.quiz summary::-webkit-details-marker{display:none}
+details.quiz summary::before{content:"＋";display:inline-block;width:22px;color:var(--muted)}
+details.quiz[open] summary::before{content:"－"}
+details.quiz .ans{padding:0 16px 14px 38px}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+footer{padding:40px 0 60px;color:var(--muted);font-size:14px}
+svg text{font-family:var(--sans)}
+/* bilingual */
+html[data-lang="en"] .zh, html[data-lang="zh"] .en{display:none !important}
+html[data-lang="en"]{--serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman",serif}
+nav.top .wrap{justify-content:flex-start}
+.lang{margin-left:auto;flex:none;display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.lang button{border:0;background:none;color:var(--muted);padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+</style>
+</head>
+<body>
+<nav class="top" aria-label="Sections">
+  <div class="wrap">
+    <a class="brand" href="#top">Perishable VI on GPU</a>
+    <a href="#read"><span class="en">1 Paper</span><span class="zh">1 论文解读</span></a>
+    <a href="#typos"><span class="en">2 Typos</span><span class="zh">2 Typos</span></a>
+    <a href="#repro"><span class="en">3 Method</span><span class="zh">3 复现过程</span></a>
+    <a href="#results"><span class="en">4 Results</span><span class="zh">4 复现结果</span></a>
+    <a href="#concl"><span class="en">5 Conclusions</span><span class="zh">5 结论与展望</span></a>
+    <span class="lang" role="group" aria-label="Language"><button data-l="en" aria-pressed="true">EN</button><button data-l="zh" aria-pressed="false">中文</button></span>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="cite">Ortega, Hendrix &amp; García · <i>The Journal of Supercomputing</i> 75:1580–1593 (2019) · <span class="en">Reproduction by</span><span class="zh">复现：</span> Bin Zeng (Ben Tseng)</div>
+    <h1>A CUDA approach to compute perishable inventory control policies using value iteration</h1>
+    <p class="zh-title"><span class="en">A reading guide, a list of apparent typos, and an independent CPU/GPU reproduction</span><span class="zh">用 CUDA 加速 value iteration，求解易腐商品的最优订货策略</span></p>
+
+    <ol class="chain">
+      <li class="en"><b>How much to order</b>Too much spoils, too little stocks out</li>
+      <li class="en"><b>MDP + value iteration</b>Order by the age profile of stock</li>
+      <li class="en"><b>Substitution</b>B out of stock → buy A; state space explodes</li>
+      <li class="en"><b>GPU acceleration</b>Move the costliest expectations to CUDA</li>
+      <li class="zh"><b>生鲜该订多少</b>订多了过期，订少了缺货</li>
+      <li class="zh"><b>MDP + 价值迭代</b>按库存年龄分布查表订货</li>
+      <li class="zh"><b>商品可替代</b>B 缺货转买 A，状态空间暴涨</li>
+      <li class="zh"><b>GPU 加速</b>把最贵的期望计算交给 CUDA</li>
+    </ol>
+
+    <div class="scroll">
+    <table class="ledger">
+      <caption><span class="en">The paper's claims, checked one by one</span><span class="zh">论文主张逐项核对</span></caption>
+      <thead><tr><th><span class="en">Claim</span><span class="zh">论文主张</span></th><th><span class="en">Paper</span><span class="zh">论文数值</span></th><th><span class="en">Reproduction</span><span class="zh">复现结果</span></th><th><span class="en">Verdict</span><span class="zh">判定</span></th></tr></thead>
+      <tbody class="num">
+        <tr><td><span class="en">One product, M=2: optimal average daily profit π</span><span class="zh">单商品 M=2 最优平均日利润 π</span></td><td>2.215</td><td>2.215160</td><td><span class="st ok"><span class="en">Reproduced</span><span class="zh">复现</span></span></td></tr>
+        <tr><td><span class="en">Largest order chosen by the optimal policy</span><span class="zh">最优策略最大订货量</span></td><td>7</td><td>7</td><td><span class="st ok"><span class="en">Reproduced</span><span class="zh">复现</span></span></td></tr>
+        <tr><td><span class="en">Table 3 state counts, P2–P4</span><span class="zh">Table 3 状态数 P2–P4</span></td><td>20,449 / 28,561 / 38,416</td><td><span class="en">Exact match (Q read as number of levels)</span><span class="zh">完全一致（按“取值个数”解释 Q）</span></td><td><span class="st ok"><span class="en">Reproduced</span><span class="zh">复现</span></span></td></tr>
+        <tr><td><span class="en">Table 3 state count, P1</span><span class="zh">Table 3 状态数 P1</span></td><td>14,461</td><td>14,641 = 11⁴</td><td><span class="st fix"><span class="en">Typo corrected</span><span class="zh">修正笔误</span></span></td></tr>
+        <tr><td><span class="en">P1 waste, A / B</span><span class="zh">P1 损耗率 A / B</span></td><td>5.97% / 4.14%</td><td>6.00% / 4.18%</td><td><span class="st near"><span class="en">Close</span><span class="zh">接近</span></span></td></tr>
+        <tr><td><span class="en">P1 two-product average daily profit</span><span class="zh">P1 双商品平均日利润</span></td><td>5.509</td><td><span class="en">4.5032 (upper bound 5)</span><span class="zh">4.5032（理论上限 5）</span></td><td><span class="st no"><span class="en">Infeasible</span><span class="zh">不可行</span></span></td></tr>
+        <tr><td><span class="en">GPU benefit grows with problem size</span><span class="zh">GPU 加速随规模增大</span></td><td>3.9× → 11.7×</td><td><span class="en">35.2× → 49.5× (T4, different baseline)</span><span class="zh">35.2× → 49.5×（T4，基线不同）</span></td><td><span class="st ok"><span class="en">Same trend</span><span class="zh">定性一致</span></span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 1 ================= -->
+<section class="part" id="read">
+<div class="wrap">
+  <div class="part-head"><span class="n">1</span><h2><span class="en">Reading the paper</span><span class="zh">论文解读</span></h2></div>
+  <div class="prose">
+    <p class="en">Imagine running a supermarket and deciding each day how many cartons of milk to order. Order too few and you lose sales; order too many and the leftovers expire. Now add one twist: when brand B is out of stock, some customers switch to brand A. How much A you should order then depends on how much B you have left.</p>
+    <p class="zh">假设你经营一家超市，每天决定订多少盒牛奶。订少了缺货、丢销售；订多了卖不完会过期。再加一个条件：顾客想买 B，B 缺货时有人愿意改买 A。于是 A 订多少，也取决于 B 还剩多少。</p>
+    <p class="en">The authors ask whether a GPU can compute the optimal ordering policy faster when both remaining shelf life and substitution are modelled. "Optimal" means maximising long-run average daily profit, within the model and its order cap.</p>
+    <p class="zh">作者的问题是：同时考虑剩余保质期和替代需求时，能否用 GPU 更快地算出最优订货策略。这里“最优”指在模型和订货上限内，最大化长期平均每日利润。</p>
+
+    <h3><span class="en">Stock has an age, not just a total</span><span class="zh">库存要记录“年龄”，不只是总量</span></h3>
+    <p class="en">Inventory is a vector <span class="m">I = (I<sub>1</sub>, …, I<sub>M</sub>)</span>, where <span class="m">I<sub>r</sub></span> counts items with <span class="m">r</span> days of shelf life left. <span class="m">(3,2,1)</span> and <span class="m">(0,0,6)</span> both hold 6 items, but the first has 3 that expire tonight. Timing matters too: <b>an order placed today arrives tomorrow morning</b>, so it cannot serve today's customers.</p>
+    <p class="zh">库存写成向量 <span class="m">I = (I<sub>1</sub>, …, I<sub>M</sub>)</span>，<span class="m">I<sub>r</sub></span> 是剩余 <span class="m">r</span> 天保质期的件数。<span class="m">(3,2,1)</span> 和 <span class="m">(0,0,6)</span> 总量都是 6，但前者有 3 件今晚就会报废。还要记住时间点：<b>今天下单，明天早上到货</b>，今天的订单不能卖给今天的顾客。</p>
+  </div>
+
+  <div class="widget" id="fifo">
+    <h4><span class="en">State transition F(q, I, d): watch one day unfold</span><span class="zh">状态转移 F(q, I, d)：动手看一天发生了什么</span></h4>
+    <div class="sub"><span class="en">FIFO: customers take the oldest item first. Change demand and order size to see what is sold, spoiled, aged and delivered.</span><span class="zh">FIFO：顾客先拿最老的。调需求和订货量，观察卖出、过期、变老、到货。</span></div>
+    <div class="ctrls">
+      <label><span class="en">1 day left</span><span class="zh">剩 1 天</span> <span class="stepper" data-i="0"><button aria-label="−">−</button><span>3</span><button aria-label="+">+</button></span></label>
+      <label><span class="en">2 days left</span><span class="zh">剩 2 天</span> <span class="stepper" data-i="1"><button aria-label="−">−</button><span>2</span><button aria-label="+">+</button></span></label>
+      <label><span class="en">3 days left</span><span class="zh">剩 3 天</span> <span class="stepper" data-i="2"><button aria-label="−">−</button><span>1</span><button aria-label="+">+</button></span></label>
+    </div>
+    <div class="ctrls">
+      <label><span class="en">Demand today d</span><span class="zh">今天需求 d</span> <input type="range" id="fd" min="0" max="12" value="4"><b id="fdv" class="num">4</b></label>
+      <label><span class="en">Order today q</span><span class="zh">今天订货 q</span> <input type="range" id="fq" min="0" max="8" value="5"><b id="fqv" class="num">5</b></label>
+    </div>
+    <svg id="fifoSvg" viewBox="0 0 680 250" role="img" aria-label="FIFO transition"></svg>
+    <div class="legend"><span><i style="background:var(--sold)"></i><span class="en">Sold today</span><span class="zh">今天卖出</span></span><span><i style="background:var(--red)"></i><span class="en">Expires tonight</span><span class="zh">今晚过期</span></span><span><i style="border:1.5px solid var(--muted)"></i><span class="en">Carried over (one day older)</span><span class="zh">留到明天（变老一天）</span></span><span><i style="background:var(--orange)"></i><span class="en">Arrives tomorrow morning</span><span class="zh">明早到货</span></span></div>
+    <div class="readout num" id="fifoOut"></div>
+  </div>
+
+  <div class="prose">
+    <h3><span class="en">Why this is an MDP</span><span class="zh">为什么是 MDP</span></h3>
+    <div class="scroll"><table class="t">
+      <thead><tr><th><span class="en">MDP concept</span><span class="zh">MDP 概念</span></th><th><span class="en">Meaning in the store</span><span class="zh">超市里的含义</span></th></tr></thead>
+      <tbody>
+      <tr><td>State</td><td><span class="en">Stock at each shelf-life level</span><span class="zh">各保质期层级的库存</span></td></tr>
+      <tr><td>Action</td><td><span class="en">How much to order (a pair (q<sub>a</sub>, q<sub>b</sub>) for two products)</span><span class="zh">今天订多少（两商品时为 (q<sub>a</sub>, q<sub>b</sub>)）</span></td></tr>
+      <tr><td><span class="en">Random event</span><span class="zh">随机事件</span></td><td><span class="en">Daily Poisson demand, and whether stocked-out customers switch</span><span class="zh">当天需求（Poisson），以及缺货顾客是否转买</span></td></tr>
+      <tr><td><span class="en">Transition</span><span class="zh">状态转移</span></td><td><span class="en">Sell, spoil, age, deliver</span><span class="zh">销售、过期、变老、到货</span></td></tr>
+      <tr><td>Reward</td><td><span class="en">Sales revenue − ordering cost</span><span class="zh">销售收入 − 订货成本</span></td></tr>
+      <tr><td>Policy</td><td><span class="en">A lookup table: stock state → order quantity Q*(I)</span><span class="zh">一张表：每种库存状态 → 订货量 Q*(I)</span></td></tr>
+      </tbody></table></div>
+    <div class="card g"><span class="lab"><span class="en">Intuition</span><span class="zh">直觉</span></span>
+      <p class="en">"Markov" means today's age profile is enough to describe tomorrow; no history is needed. The authors' job is to precompute that "state → order" lookup table.</p>
+      <p class="zh">“马尔可夫”指知道今天的库存年龄分布，就足以描述明天的变化，不必回看历史。作者要做的事，就是提前把那张“状态 → 订货量”的查询表算出来。</p></div>
+
+    <h3><span class="en">What value iteration computes</span><span class="zh">价值迭代在算什么</span></h3>
+    <p class="en">Today's profit alone is not enough: ordering less saves cost today but may cause a stock-out tomorrow. Each candidate order is scored as today's reward plus the long-run value of the stock it leads to.</p>
+    <p class="zh">只看当天利润不够：今天少订省了成本，明天可能缺货。每个候选订货量都要比较“今天的收益 + 它导致的明天库存的长期价值”。</p>
+    <div class="card b"><span class="lab"><span class="en">Formula (average-reward Bellman equation, written with max for profit maximisation)</span><span class="zh">公式（平均收益 Bellman 方程，按利润最大化修正为 max）</span></span>
+      <div class="eq"><i>π</i> + <i>V</i>(<i>I</i>) = <i>s</i>·E[min(<i>d</i>, <i>Y</i>)] + <span class="op">max<small>q</small></span>{ −<i>cq</i> + E[<i>V</i>(<i>F</i>(<i>q</i>, <i>I</i>, <i>d</i>))] }</div>
+      <p class="en"><span class="m">Y = Σ<sub>r</sub> I<sub>r</sub></span> is total stock. <span class="m">V(I)</span> is a relative value (unchanged by adding a constant); <span class="m">π</span> is the unique optimal long-run average daily profit.</p>
+      <p class="zh"><span class="m">Y = Σ<sub>r</sub> I<sub>r</sub></span> 是总库存。<span class="m">V(I)</span> 是相对价值（加任意常数不变），<span class="m">π</span> 是唯一的最优长期平均日利润。</p>
+    </div>
+    <ol class="flow en">
+      <li><div><b>Initialise</b>Give every state a starting value (the paper uses expected sales Esale<sub>j</sub>).</div></li>
+      <li><div><b>Freeze the old table</b>Copy V into W. Every state in a sweep reads only W, so states are independent — this is what makes the sweep parallel.</div></li>
+      <li><div><b>Expectation per state and action</b>For each order quantity, weight W(next state) by the demand probabilities.</div></li>
+      <li><div><b>Take the best</b>Keep the highest-scoring order and update V<sub>j</sub>.</div></li>
+      <li><div><b>Check the span</b>Stop when span(V − W) = max(V<sub>j</sub> − W<sub>j</sub>) − min(V<sub>j</sub> − W<sub>j</sub>) &lt; 10⁻⁴; the bounds of V − W then bracket π.</div></li>
+    </ol>
+    <ol class="flow zh">
+      <li><div><b>初始化</b>给每个状态一个初值（论文用期望销售 Esale<sub>j</sub>）。</div></li>
+      <li><div><b>冻结旧表</b>把 V 复制成 W。同一轮所有状态都只读 W，彼此独立——这正是可以并行的原因。</div></li>
+      <li><div><b>逐状态、逐动作求期望</b>对每个订货量，按需求概率加权 W(下一状态)。</div></li>
+      <li><div><b>取最优</b>选得分最高的订货量，更新 V<sub>j</sub>。</div></li>
+      <li><div><b>检查 span</b>span(V − W) = max(V<sub>j</sub> − W<sub>j</sub>) − min(V<sub>j</sub> − W<sub>j</sub>) &lt; 10⁻⁴ 时停止，此时 V − W 的上下界夹住 π。</div></li>
+    </ol>
+
+    <h3><span class="en">Why two products blow up the computation</span><span class="zh">两个商品为什么让计算量暴涨</span></h3>
+    <p class="en">One product has <span class="m">N = (Q̄+1)<sup>M</sup></span> states; two products have <span class="m">(Q̄<sub>a</sub>+1)<sup>M</sup>(Q̄<sub>b</sub>+1)<sup>M</sup></span>. Each state must also try <span class="m">(Q̄<sub>a</sub>+1)(Q̄<sub>b</sub>+1)</span> order pairs and every demand/substitution event, times the number of sweeps.</p>
+    <p class="zh">单商品状态数 <span class="m">N = (Q̄+1)<sup>M</sup></span>；两商品是 <span class="m">(Q̄<sub>a</sub>+1)<sup>M</sup>(Q̄<sub>b</sub>+1)<sup>M</sup></span>。每个状态还要遍历 <span class="m">(Q̄<sub>a</sub>+1)(Q̄<sub>b</sub>+1)</span> 种订货组合、所有需求/替代事件，再乘以迭代轮数。</p>
+  </div>
+
+  <div class="widget" id="space">
+    <h4><span class="en">State-space calculator</span><span class="zh">状态空间计算器</span></h4>
+    <div class="sub"><span class="en">Log scale. Grey marks are the Matlab timings from the paper's Table 1.</span><span class="zh">刻度为对数。灰色标记是论文 Table 1 的 Matlab 实测点。</span></div>
+    <div class="ctrls">
+      <label><span class="en">Products</span><span class="zh">商品数</span> <span class="seg" id="sp"><button aria-pressed="false" data-v="1">1</button><button aria-pressed="true" data-v="2">2</button></span></label>
+      <label><span class="en">Shelf life M</span><span class="zh">保质期 M</span> <span class="seg" id="sm"><button aria-pressed="true" data-v="2">2</button><button aria-pressed="false" data-v="3">3</button><button aria-pressed="false" data-v="4">4</button></span></label>
+      <label><span class="en">Max order Q̄</span><span class="zh">最大订货量 Q̄</span> <input type="range" id="sq" min="1" max="20" value="10"><b id="sqv" class="num">10</b></label>
+    </div>
+    <svg id="spaceSvg" viewBox="0 0 680 120" role="img" aria-label="State count on a log scale"></svg>
+    <div class="readout num" id="spaceOut"></div>
+  </div>
+
+  <div class="prose">
+    <h3><span class="en">How substitution is modelled</span><span class="zh">替代需求怎么建模</span></h3>
+    <p class="en">Substitution runs one way: when B is short, each customer who missed B independently switches to A with probability <span class="m">γ</span>. The number switching is <span class="m">u ~ Binomial(x, γ)</span>, where <span class="m">x</span> is B's shortfall. A must serve its own demand plus this extra demand, so the two orders have to be decided jointly.</p>
+    <p class="zh">方向是单向的：B 缺货时，每位没买到 B 的顾客独立地以概率 <span class="m">γ</span> 改买 A。转来的人数 <span class="m">u ~ Binomial(x, γ)</span>，<span class="m">x</span> 是 B 的缺口。A 要同时满足自己的需求和这部分替代需求，所以两个订货量必须联合决定。</p>
+  </div>
+
+  <div class="widget" id="subst">
+    <h4><span class="en">Distribution of substitution demand</span><span class="zh">替代需求分布</span></h4>
+    <div class="ctrls">
+      <label><span class="en">B stock y</span><span class="zh">B 库存 y</span> <input type="range" id="by" min="0" max="10" value="3"><b id="byv" class="num">3</b></label>
+      <label><span class="en">B demand d<sub>b</sub></span><span class="zh">B 需求 d<sub>b</sub></span> <input type="range" id="bd" min="0" max="14" value="5"><b id="bdv" class="num">5</b></label>
+      <label>γ <input type="range" id="bg" min="0" max="1" step="0.05" value="0.5"><b id="bgv" class="num">0.50</b></label>
+    </div>
+    <svg id="substSvg" viewBox="0 0 680 200" role="img" aria-label="Binomial distribution of switching customers"></svg>
+    <div class="readout num" id="substOut"></div>
+  </div>
+
+  <div class="prose">
+    <h3><span class="en">Exactly what CUDA accelerates</span><span class="zh">CUDA 加速的到底是哪一段</span></h3>
+    <p class="en">In the sequential code, the nested substitution loops (Algorithm 3, lines 14–19) take over 95% of the runtime. Only that part moves to the GPU. For one fixed state j, each block handles one order pair, each thread in the block computes one demand event's contribution P(event)·W(next state), and thread 0 sums them in shared memory.</p>
+    <p class="zh">顺序程序里，处理替代需求的嵌套循环（Algorithm 3 第 14–19 行）占 95% 以上时间。作者只把这一段搬到 GPU：对一个固定状态 j，每个 block 算一个订货组合，block 内每个 thread 算一个需求事件的贡献 P(事件)·W(下一状态)，最后由 0 号线程在 shared memory 里求和。</p>
+  </div>
+  <div class="widget">
+    <h4><span class="en">Thread mapping (one fixed state j)</span><span class="zh">线程映射（固定一个状态 j）</span></h4>
+    <svg viewBox="0 0 680 270" role="img" aria-label="CUDA block and thread mapping">
+      <g font-size="12" fill="var(--ink)">
+        <text x="20" y="22" font-weight="600" class="en">grid: (Q̄ₐ+1)(Q̄ᵦ+1) blocks</text>
+        <text x="20" y="22" font-weight="600" class="zh">grid：(Q̄ₐ+1)(Q̄ᵦ+1) 个 block</text>
+        <g id="gridBlocks"></g>
+        <text x="20" y="250" fill="var(--muted)" class="en">each cell = one (qₐ, q_b)</text>
+        <text x="20" y="250" fill="var(--muted)" class="zh">每格 = 一个 (qₐ, q_b)</text>
+        <path d="M206 120 L262 120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+        <rect x="268" y="40" width="250" height="190" rx="8" fill="var(--blue-bg)" stroke="var(--blue)"/>
+        <text x="282" y="62" font-weight="600" fill="var(--blue)">block (qₐ, q_b)</text>
+        <text x="282" y="82" fill="var(--muted)" class="en">32⌈N_re/32⌉ threads, each = (dₐ, d_b)</text>
+        <text x="282" y="82" fill="var(--muted)" class="zh">32⌈N_re/32⌉ 个 thread，每个 = (dₐ, d_b)</text>
+        <g id="thr"></g>
+        <text x="282" y="150" font-size="11" fill="var(--muted)" class="en">hollow = idle threads padding to a multiple of 32</text>
+        <text x="282" y="150" font-size="11" fill="var(--muted)" class="zh">空心 = 补齐到 32 倍数的空闲线程</text>
+        <text x="282" y="164">thvfuture[ ] (shared memory)</text>
+        <rect x="282" y="170" width="220" height="16" rx="3" fill="none" stroke="var(--blue)"/>
+        <text x="282" y="214" class="en">thread 0: Σ + Esale − cₐqₐ − c_bq_b</text>
+        <text x="282" y="214" class="zh">thread 0：Σ + Esale − cₐqₐ − c_bq_b</text>
+        <path d="M518 135 L572 135" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+        <rect x="576" y="100" width="92" height="70" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="590" y="126" font-weight="600">Fv(qₐ,q_b)</text>
+        <text x="590" y="146" fill="var(--muted)" class="en">copy to CPU</text>
+        <text x="590" y="162" fill="var(--muted)" class="en">CPU takes max</text>
+        <text x="590" y="146" fill="var(--muted)" class="zh">拷回 CPU</text>
+        <text x="590" y="162" fill="var(--muted)" class="zh">CPU 取 max</text>
+      </g>
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+    </svg>
+    <p class="muted en" style="font-size:14px;margin:6px 0 0">The outer loop over states still runs on the CPU. Each state costs one kernel launch and one device→host copy, which is why communication takes 16–24% of the paper's GPU runtime.</p>
+    <p class="muted zh" style="font-size:14px;margin:6px 0 0">外层的状态循环仍在 CPU 上逐个进行；每个状态都要一次 kernel 调用和一次 device→host 拷贝，这正是论文中通信占 16–24% 的来源。</p>
+  </div>
+
+  <div class="prose">
+    <h3><span class="en">Results reported in the paper</span><span class="zh">论文报告的结果</span></h3>
+    <div class="scroll"><table class="t">
+      <thead><tr><th><span class="en">One product, M=2, μ=5, s=1, c=0.5</span><span class="zh">单商品 M=2，μ=5，s=1，c=0.5</span></th><th><span class="en">Avg daily profit</span><span class="zh">平均日利润</span></th><th><span class="en">Waste</span><span class="zh">损耗率</span></th></tr></thead>
+      <tbody>
+        <tr><td><span class="en">Best base-stock rule (S=13)</span><span class="zh">最优 base-stock（S=13）</span></td><td>2.195</td><td>7.33%</td></tr>
+        <tr><td><span class="en">Value-iteration policy</span><span class="zh">价值迭代最优策略</span></td><td>2.215</td><td>5.78%</td></tr>
+      </tbody></table></div>
+    <p class="muted en" style="font-size:15px;margin-top:10px">Profit rises only slightly, but waste falls noticeably. With longer shelf life (M=3, 4) the optimal policy approaches a simple order-up-to rule.</p>
+    <p class="muted zh" style="font-size:15px;margin-top:10px">利润只多一点，但损耗明显下降。保质期越长（M=3、4），最优策略越接近简单的 order-up-to 规则。</p>
+  </div>
+
+  <div class="widget">
+    <h4><span class="en">Paper Table 4: where the GPU version spends its time</span><span class="zh">论文 Table 4：GPU 版本的时间都花在哪</span></h4>
+    <div class="sub"><span class="en">Share of total runtime over 100 sweeps (%). The kernel's share grows with problem size.</span><span class="zh">100 轮迭代总时间的构成（%）。规模越大，GPU kernel 占比越高。</span></div>
+    <svg id="breakSvg" viewBox="0 0 680 200" role="img" aria-label="GPU runtime breakdown"></svg>
+    <div class="legend"><span><i style="background:var(--blue)"></i>GPUSubstitution kernel</span><span><i style="background:var(--orange)"></i><span class="en">CPU↔GPU transfer</span><span class="zh">CPU↔GPU 通信</span></span><span><i style="background:var(--paper)"></i><span class="en">Rest of VI (CPU)</span><span class="zh">其他 VI 部分（CPU）</span></span></div>
+  </div>
+
+  <div class="prose">
+    <div class="card y"><span class="lab"><span class="en">Remember these four points</span><span class="zh">记住这四句</span></span>
+      <p class="en">① The state must record remaining shelf life, not just the total. ② Ordering trades today's cost against future stock value, hence MDP + value iteration. ③ Substitution couples the two products' decisions, so states and work grow fast. ④ The costliest expectation is moved to the GPU: up to about 11.7× overall, about 19.6× for the substitution part alone.</p>
+      <p class="zh">① 状态要记录剩余保质期，不能只记总量。② 订货要权衡当天成本与未来库存价值，所以用 MDP + 价值迭代。③ 替代让两个商品的决策耦合，状态与计算量迅速增长。④ 作者把最耗时的期望计算交给 GPU，整体最高约 11.7×，替代部分本身约 19.6×。</p>
+    </div>
+    <details class="quiz"><summary><span class="en">Quiz: stock (3,2,1), demand 2, order 5. Why is tomorrow (2,1,5) and not (3,2,5)?</span><span class="zh">小测：库存 (3,2,1)，需求 2，订货 5，明天为什么是 (2,1,5) 而不是 (3,2,5)？</span></summary>
+      <div class="ans en">Sell: 2 of the 3 oldest items are sold. Spoil: the remaining 1 expires tonight. Age: the 2 items with 2 days left now have 1; the 1 item with 3 days left now has 2. Deliver: 5 new items arrive as the freshest layer. Hence (2,1,5). (3,2,5) ignores both sales and ageing.</div>
+      <div class="ans zh">卖出：最老的 3 件里卖掉 2 件。过期：剩下的 1 件今晚过期。变老：剩 2 天的 2 件变成剩 1 天，剩 3 天的 1 件变成剩 2 天。到货：明早 5 件作为最新鲜的一层。所以是 (2,1,5)。(3,2,5) 忽略了销售和变老。</div></details>
+    <details class="quiz"><summary><span class="en">Quiz: why can all states in one sweep run in parallel?</span><span class="zh">小测：为什么同一轮迭代里所有状态可以并行？</span></summary>
+      <div class="ans en">Each new value reads only the frozen W from the previous sweep, never a V computed in the same sweep. There is no read-after-write dependency between states.</div>
+      <div class="ans zh">每个状态的新值只读取上一轮冻结的 W，不读同轮刚算出的 V。状态之间没有写后读依赖。</div></details>
+  </div>
+</div>
+</section>
+
+<!-- ================= 2 ================= -->
+<section class="part" id="typos">
+<div class="wrap">
+  <div class="part-head"><span class="n">2</span><h2><span class="en">Apparent typos in the paper</span><span class="zh">论文疑似 Typos</span></h2></div>
+  <div class="prose">
+    <p class="en">The author advised that the paper may contain typographical errors and that the reproduction should proceed with a documented interpretation. Each item below gives the original text, the evidence and how the reproduction handled it. These are reproduction assumptions, not claims about the unpublished code.</p>
+    <p class="zh">作者回复中承认论文可能存在排印错误，并建议按有文档记录的解释继续复现。下面每一项都写清原文、证据和复现中的处理。它们是复现假设，不是对未公开源码的断言。</p>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">Newsvendor critical fractile</span><span class="zh">Newsvendor 临界分位数</span></h4><span class="where"><span class="en">Eq. (1), p.1581</span><span class="zh">式 (1)，p.1581</span></span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="m">Q = G<sup>−1</sup>((s − c)/<s class="bad">c</s>)</span><br><span class="en">With s=1, c=0.5 the ratio is 1; a Poisson distribution has no finite quantile there.</span><span class="zh">s=1，c=0.5 时比值为 1，Poisson 分布不存在有限分位数。</span></div>
+      <div class="now"><span class="k"><span class="en">Corrected</span><span class="zh">修正</span></span><span class="m">Q = G<sup>−1</sup>((s − c)/s)</span><br><span class="en">From C<sub>u</sub>=s−c, C<sub>o</sub>=c: C<sub>u</sub>/(C<sub>u</sub>+C<sub>o</sub>) = (s−c)/s = 0.5.</span><span class="zh">由 C<sub>u</sub>=s−c、C<sub>o</sub>=c 得 C<sub>u</sub>/(C<sub>u</sub>+C<sub>o</sub>) = (s−c)/s = 0.5。</span></div>
+    </div>
+    <div class="typo-why"><span class="en">Handling: the single-period formula is not used to infer the DP cap; the paper's stated Q̄ = 9 is used directly. A single-period optimum and a multi-period order cap are different concepts.</span><span class="zh">复现处理：不用该单周期公式推断 DP 上限，直接采用论文给出的 Q̄ = 9。单周期最优量与多周期模型的订货上限是不同概念。</span></div>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">Direction of the Bellman optimisation</span><span class="zh">Bellman 方程优化方向</span></h4><span class="where"><span class="en">Eqs. (8)(10)(11)</span><span class="zh">式 (8)(10)(11)</span></span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="en">Equations use <code>min</code> / <code>argmin</code>, while Algorithms 1 and 2 use <code>max</code>.</span><span class="zh">公式写 <code>min</code> / <code>argmin</code>，而 Algorithm 1、2 写 <code>max</code>。</span></div>
+      <div class="now"><span class="k"><span class="en">Corrected</span><span class="zh">修正</span></span><span class="en">The objective is profit maximisation, so every Bellman update uses <code>max</code>.</span><span class="zh">目标是最大化利润，所有 Bellman 更新统一用 <code>max</code>。</span></div>
+    </div>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">Expected sales omit the Poisson tail</span><span class="zh">期望销售漏掉 Poisson 尾部</span></h4><span class="where"><span class="en">Eq. (9)</span><span class="zh">式 (9)</span></span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="m">Esale(I) = Σ<sub>d=1</sub><sup>Y</sup> d·p<sub>d</sub></span><br><span class="en">When demand exceeds stock, all stock still sells; that mass is missing.</span><span class="zh">需求超过库存时，库存其实全部卖光，这部分没计入。</span></div>
+      <div class="now"><span class="k"><span class="en">Corrected</span><span class="zh">修正</span></span><span class="m">E[min(d,Y)] = Σ<sub>d=0</sub><sup>Y−1</sup> d·p<sub>d</sub> + Y·P(d ≥ Y)</span><br><span class="en">Rewards and transitions keep the tail by capping sales at stock instead of truncating.</span><span class="zh">收益与转移都保留尾部概率，用“销量封顶为库存”代替截断丢弃。</span></div>
+    </div>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">Meaning of Q<sub>a</sub>, Q<sub>b</sub> in Table 3</span><span class="zh">Table 3 中 Q<sub>a</sub>、Q<sub>b</sub> 的含义</span></h4><span class="where">Table 3, p.1591</span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="en">The text defines <span class="m">N = (Q<sub>a</sub>+1)<sup>M</sup>(Q<sub>b</sub>+1)<sup>M</sup></span>, with Q an inclusive maximum.</span><span class="zh">正文定义 <span class="m">N = (Q<sub>a</sub>+1)<sup>M</sup>(Q<sub>b</sub>+1)<sup>M</sup></span>，Q 是含端点的最大数量。</span></div>
+      <div class="now"><span class="k"><span class="en">Interpretation</span><span class="zh">解释</span></span><span class="en">In Table 3, Q is the number of admissible levels, 0…Q−1, so <span class="m">N = Q<sub>a</sub><sup>M</sup>Q<sub>b</sub><sup>M</sup></span>.</span><span class="zh">Table 3 的 Q 是“数量等级个数”，范围 0…Q−1，<span class="m">N = Q<sub>a</sub><sup>M</sup>Q<sub>b</sub><sup>M</sup></span>。</span></div>
+    </div>
+  </div>
+
+  <div class="widget" id="t3">
+    <h4><span class="en">Switch interpretations and see which one matches Table 3</span><span class="zh">切换解释，看哪一种能对上 Table 3</span></h4>
+    <div class="ctrls"><span class="seg" id="t3seg"><button aria-pressed="false" data-v="max"><span class="en">Q = max order</span><span class="zh">Q = 最大订货量</span></button><button aria-pressed="true" data-v="cnt"><span class="en">Q = number of levels</span><span class="zh">Q = 取值个数</span></button></span></div>
+    <div class="scroll"><table class="t" id="t3tab"></table></div>
+    <p class="muted" style="font-size:14px;margin:10px 0 0" id="t3note"></p>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">P1 state count</span><span class="zh">P1 状态数</span></h4><span class="where">Table 1, Table 3, §3.2</span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="en">Tables 1 and 3 give <b class="num">14,461</b>; the text of §3.2 gives <b class="num">14,651</b>.</span><span class="zh">Table 3 与 Table 1 写 <b class="num">14,461</b>；§3.2 正文写 <b class="num">14,651</b>。</span></div>
+      <div class="now"><span class="k"><span class="en">Corrected</span><span class="zh">修正</span></span><span class="en"><b class="num">14,641 = 11⁴</b> (the 4 and 6 transposed).</span><span class="zh"><b class="num">14,641 = 11⁴</b>（4 与 6 换位）。</span></div>
+    </div>
+    <div class="typo-why"><span class="en">Cross-check: §3.2 states a maximum order Q=10 and 121 = 11×11 order pairs per state, i.e. 11 levels. Table 1 lists the same instance with Q=10, and its other columns all satisfy (Q+1)<sup>M</sup> (e.g. 4,096=16³, 194,481=21⁴, 117,649=7⁶). Table 3 lists Q=11. All three point to 11 levels and 11⁴ states — and show that Tables 1 and 3 use different conventions for Q, which supports the "number of levels" reading above.</span><span class="zh">交叉印证：§3.2 说最大订货量 Q=10、每个状态 121 = 11×11 种订货组合，即 11 个等级；Table 1 同一实例写 Q=10，其余列都满足 (Q+1)<sup>M</sup>（如 4,096=16³、194,481=21⁴、117,649=7⁶）；Table 3 写 Q=11。三处都指向 11 个等级、11⁴ 个状态。这也说明 Table 1 和 Table 3 对 Q 的记法不同，支持上面的“取值个数”解释。</span></div>
+  </div>
+
+  <div class="typo">
+    <div class="typo-h"><h4><span class="en">P1 two-product profit exceeds its upper bound</span><span class="zh">P1 双商品利润超过理论上限</span></h4><span class="where">§3.2</span></div>
+    <div class="typo-b">
+      <div class="was"><span class="k"><span class="en">Paper</span><span class="zh">原文</span></span><span class="en">Average daily profit of the value-iteration policy: <b class="num">5.509</b>.</span><span class="zh">价值迭代策略的平均日利润 <b class="num">5.509</b>。</span></div>
+      <div class="now"><span class="k"><span class="en">Upper bound</span><span class="zh">上限</span></span><span class="en">Substitution moves B's demand to A; it adds no demand. Even with full service and zero waste, profit is at most (5+5)×(1−0.5) = <b>5</b>.</span><span class="zh">替代只是把 B 的需求转给 A，不增加总需求。即使全部满足、零损耗，利润最多 (5+5)×(1−0.5) = <b>5</b>。</span></div>
+    </div>
+    <div class="typo-why"><span class="en">Handling: 5.509 is not used as a target. The reproduction obtains 4.5032; waste rates closely match the paper (see Part 4), so the policy dynamics agree and the reported profit figure is what is off.</span><span class="zh">复现处理：不把 5.509 当作目标。复现得到 4.5032；损耗率与论文高度接近（见第 4 部分），说明策略动态对得上，问题出在报告的利润数字。</span></div>
+  </div>
+  <div class="widget">
+    <h4><span class="en">P1 profit comparison (upper bound = 5)</span><span class="zh">P1 利润对照（上限 = 5）</span></h4>
+    <svg id="profitSvg" viewBox="0 0 680 210" role="img" aria-label="P1 profit comparison"></svg>
+  </div>
+
+  <div class="prose">
+    <h3><span class="en">Additional check: inconsistencies in the pseudocode</span><span class="zh">补充核查：伪代码中的不一致</span></h3>
+    <p class="muted en">Found while reading Algorithms 3–5 and not listed in the reproduction report. Because the reproduction is an independent implementation that does not follow this pseudocode, they do not affect the results, but they are worth reporting to the authors.</p>
+    <p class="muted zh">以下是阅读 Algorithm 3–5 时发现、复现报告未列出的问题。因为复现是独立实现，不依赖这些伪代码，所以不影响结果，但可以一并反馈给作者。</p>
+    <div class="scroll"><table class="t">
+      <thead><tr><th><span class="en">Location</span><span class="zh">位置</span></th><th><span class="en">Paper</span><span class="zh">原文</span></th><th><span class="en">Issue</span><span class="zh">问题</span></th></tr></thead>
+      <tbody style="white-space:normal">
+        <tr><td><span class="en">Alg. 5, lines 2–3</span><span class="zh">Alg. 5 第 2–3 行</span></td><td>q<sub>a</sub> = blockIdx / (Q<sub>a</sub>+1), q<sub>b</sub> = blockIdx % (Q<sub>a</sub>+1)</td><td style="white-space:normal"><span class="en">Inconsistent with line 13, iv = q<sub>a</sub>(Q<sub>b</sub>+1)+q<sub>b</sub>; should be Q<sub>b</sub>+1. Misaligns whenever Q<sub>a</sub> ≠ Q<sub>b</sub> (e.g. P2).</span><span class="zh">与第 13 行 iv = q<sub>a</sub>(Q<sub>b</sub>+1)+q<sub>b</sub> 不一致，应为 Q<sub>b</sub>+1；Q<sub>a</sub> ≠ Q<sub>b</sub>（如 P2）时会错位</span></td></tr>
+        <tr><td><span class="en">Alg. 4 line 5 vs Alg. 5 line 14</span><span class="zh">Alg. 4 第 5 行 vs Alg. 5 第 14 行</span></td><td><span class="en">The kernel already adds Esale − c<sub>a</sub>q<sub>a</sub> − c<sub>b</sub>q<sub>b</sub>; the host adds them again</span><span class="zh">kernel 已加 Esale − c<sub>a</sub>q<sub>a</sub> − c<sub>b</sub>q<sub>b</sub>，host 又加一次</span></td><td style="white-space:normal"><span class="en">Expected sales and ordering cost are counted twice</span><span class="zh">期望销售与订货成本被重复计入</span></td></tr>
+        <tr><td><span class="en">Alg. 5, line 15</span><span class="zh">Alg. 5 第 15 行</span></td><td>for i = 1, …, N<sub>re</sub></td><td style="white-space:normal"><span class="en">Thread index dadb starts at 0; should be 0 … N<sub>re</sub>−1</span><span class="zh">线程下标 dadb 从 0 开始，应为 0 … N<sub>re</sub>−1</span></td></tr>
+        <tr><td><span class="en">Alg. 3, line 5</span><span class="zh">Alg. 3 第 5 行</span></td><td>V<sub>0</sub> = min W<sub>k</sub></td><td style="white-space:normal"><span class="en">Inconsistent with profit maximisation; should be max</span><span class="zh">与利润最大化方向不一致，应为 max</span></td></tr>
+        <tr><td>Table 1 vs §2.3</td><td><span class="en">One product, M=2: Table 1 uses Q=10 (121 states), §2.3 uses Q=9</span><span class="zh">单商品 M=2：Table 1 用 Q=10（121 状态），§2.3 用 Q=9</span></td><td style="white-space:normal"><span class="en">Different caps; since the optimal policy never orders more than 7, π is unaffected</span><span class="zh">上限不同；因最优策略最多只订 7，两者不影响 π</span></td></tr>
+      </tbody></table></div>
+  </div>
+</div>
+</section>
+
+<!-- ================= 3 ================= -->
+<section class="part" id="repro">
+<div class="wrap">
+  <div class="part-head"><span class="n">3</span><h2><span class="en">How the reproduction was done</span><span class="zh">复现过程</span></h2></div>
+  <div class="prose">
+    <p class="en">The original source code is unavailable, so this is an independent implementation rather than a transcription. NumPy is the CPU reference and CuPy evaluates the same batched Bellman update on an NVIDIA GPU. Both backends share state enumeration, transition events, immediate rewards, stopping rule and numerical precision, so their results can be compared digit by digit.</p>
+    <p class="zh">原始源码不可得，所以这是一次独立实现，而不是逐行转写。NumPy 作为 CPU 参考，CuPy 在 NVIDIA GPU 上执行同一个批量 Bellman 更新。两个后端共享状态枚举、转移事件、即时收益、停止规则和数值精度，因此结果可以逐位比较。</p>
+
+    <h3><span class="en">Order of events within a day (as adopted)</span><span class="zh">一天内的事件顺序（复现采用的约定）</span></h3>
+    <ol class="flow en">
+      <li><div><b>Observe</b>In the morning, see both products' stock by age.</div></li>
+      <li><div><b>Order</b>Choose (q<sub>a</sub>, q<sub>b</sub>) at cost c<sub>a</sub>q<sub>a</sub> + c<sub>b</sub>q<sub>b</sub>.</div></li>
+      <li><div><b>Demand</b>Independent Poisson demand for A and B, served FIFO from existing stock.</div></li>
+      <li><div><b>Substitute</b>Each unmet B customer switches to A with probability γ; A's own demand and the accepted substitution demand are served together from A.</div></li>
+      <li><div><b>Age and spoil</b>Unsold items with 1 day left are discarded; the rest age by one day.</div></li>
+      <li><div><b>Deliver</b>Today's order becomes the freshest layer of the next state.</div></li>
+    </ol>
+    <ol class="flow zh">
+      <li><div><b>观察</b>早上看到两个商品各年龄层的库存。</div></li>
+      <li><div><b>下单</b>选择 (q<sub>a</sub>, q<sub>b</sub>)，成本 c<sub>a</sub>q<sub>a</sub> + c<sub>b</sub>q<sub>b</sub>。</div></li>
+      <li><div><b>需求发生</b>A、B 各自 Poisson 需求，按 FIFO 从现有库存出售。</div></li>
+      <li><div><b>替代</b>B 未满足的每位顾客以概率 γ 转向 A；A 的原始需求与替代需求一起由 A 库存满足。</div></li>
+      <li><div><b>老化与过期</b>剩 1 天的未售商品报废，其余年龄减一。</div></li>
+      <li><div><b>到货</b>今天的订单成为下一状态中最新鲜的一层。</div></li>
+    </ol>
+    <div class="card g"><span class="lab"><span class="en">Intuition</span><span class="zh">直觉</span></span>
+      <p class="en">The paper does not spell this order out. Whether orders arrive immediately or next day, and whether substitution happens before or alongside A's own demand, both change the Bellman equation. So the reproduction fixes the order first and documents it.</p>
+      <p class="zh">论文没有把这个顺序写全。订货是“立即到货”还是“次日到货”，替代与 A 原始需求是先后还是同时，都会改变 Bellman 方程。所以复现先把顺序固定并写进文档。</p></div>
+
+    <h3><span class="en">Implementation pipeline</span><span class="zh">实现流程</span></h3>
+  </div>
+  <div class="widget">
+    <svg viewBox="0 0 680 300" role="img" aria-label="Reproduction pipeline">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+      <g font-size="13" fill="var(--ink)">
+        <rect x="10" y="20" width="200" height="110" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="24" y="44" font-weight="600">model.py</text>
+        <g fill="var(--muted)" class="en"><text x="24" y="66">Presets P1–P4</text><text x="24" y="86">States, event probabilities</text><text x="24" y="106">FIFO transitions, simulation</text></g>
+        <g fill="var(--muted)" class="zh"><text x="24" y="66">参数预设 P1–P4</text><text x="24" y="86">状态枚举、事件概率</text><text x="24" y="106">FIFO 转移、仿真</text></g>
+        <path d="M210 75 L248 75" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="252" y="20" width="200" height="110" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="266" y="44" font-weight="600" class="en">CPU precompute (once)</text>
+        <text x="266" y="44" font-weight="600" class="zh">CPU 预计算（一次）</text>
+        <g fill="var(--muted)" class="en"><text x="266" y="66">Event probability table</text><text x="266" y="86">Transition indices k = F(…)</text><text x="266" y="106">Immediate rewards</text></g>
+        <g fill="var(--muted)" class="zh"><text x="266" y="66">事件概率表</text><text x="266" y="86">转移下标 k = F(…)</text><text x="266" y="106">即时收益</text></g>
+        <path d="M452 75 L490 75" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="494" y="20" width="176" height="110" rx="8" fill="var(--blue-bg)" stroke="var(--blue)"/>
+        <text x="508" y="44" font-weight="600" fill="var(--blue)">solve.py</text>
+        <g fill="var(--muted)" class="en"><text x="508" y="66">State batches (64)</text><text x="508" y="86">gather → weighted sum</text><text x="508" y="106">+ reward → max</text></g>
+        <g fill="var(--muted)" class="zh"><text x="508" y="66">按状态分批（64）</text><text x="508" y="86">gather → 加权求和</text><text x="508" y="106">+ 收益 → max</text></g>
+        <path d="M582 130 L582 168" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="494" y="172" width="176" height="110" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="508" y="196" font-weight="600" class="en">Relative VI</text>
+        <text x="508" y="196" font-weight="600" class="zh">相对价值迭代</text>
+        <g fill="var(--muted)" class="en"><text x="508" y="218">Stop at span &lt; 10⁻⁴</text><text x="508" y="238">Report bound midpoint</text><text x="508" y="258">Extract policy</text></g>
+        <g fill="var(--muted)" class="zh"><text x="508" y="218">span &lt; 10⁻⁴ 停止</text><text x="508" y="238">报告上下界中点</text><text x="508" y="258">提取策略</text></g>
+        <path d="M494 227 L456 227" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="252" y="172" width="200" height="110" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="266" y="196" font-weight="600" class="en">Validation</text>
+        <text x="266" y="196" font-weight="600" class="zh">验证</text>
+        <g fill="var(--muted)" class="en"><text x="266" y="218">400k-day simulation (seed 7643)</text><text x="266" y="238">CPU vs GPU comparison</text><text x="266" y="258">tests/test_model.py</text></g>
+        <g fill="var(--muted)" class="zh"><text x="266" y="218">40 万天仿真（seed 7643）</text><text x="266" y="238">CPU vs GPU 比对</text><text x="266" y="258">tests/test_model.py</text></g>
+        <path d="M252 227 L214 227" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="10" y="172" width="200" height="110" rx="8" fill="var(--panel)" stroke="var(--rule)"/>
+        <text x="24" y="196" font-weight="600">run.py</text>
+        <text x="24" y="218" fill="var(--muted)">counts / one / two</text>
+        <text x="24" y="238" fill="var(--muted)">simulate / bench</text>
+        <text x="24" y="258" fill="var(--muted)">--backend cpu|cuda</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="prose">
+    <div class="card o"><span class="lab"><span class="en">Example: how this differs from the paper's kernel</span><span class="zh">例子：与论文 kernel 的区别</span></span>
+      <p class="en">The paper hand-writes a CUDA 8 kernel: one launch per state, with a shared-memory reduction inside each block. The reproduction uses CuPy-generated array kernels that vectorise "gather indices → probability-weighted sum → add reward → take max" over a batch of states. The goal is to reproduce the model and assess current GPU execution, not to copy the kernel line by line.</p>
+      <p class="zh">论文手写 CUDA 8 kernel：一个状态一次 launch，block 内用 shared memory 归约。复现用 CuPy 生成的数组 kernel，把一批状态的“取下标 → 概率加权求和 → 加收益 → 取最大”整体向量化。目标是复现模型并评估当前 GPU 的执行，而不是逐行复刻 kernel。</p></div>
+
+    <h3><span class="en">Environments</span><span class="zh">环境对照</span></h3>
+    <div class="scroll"><table class="t">
+      <thead><tr><th></th><th><span class="en">Paper</span><span class="zh">论文</span></th><th><span class="en">Reproduction</span><span class="zh">复现</span></th></tr></thead>
+      <tbody>
+        <tr><td><span class="en">CPU baseline</span><span class="zh">CPU 基线</span></td><td><span class="en">Optimised sequential C (-O3)</span><span class="zh">优化的顺序 C（-O3）</span></td><td><span class="en">NumPy (readable reference)</span><span class="zh">NumPy（可读的参考实现）</span></td></tr>
+        <tr><td>GPU</td><td>2 × NVIDIA K80 (Kepler GK210)</td><td>Kaggle “GPU T4 x2”</td></tr>
+        <tr><td><span class="en">Software</span><span class="zh">软件</span></td><td>Ubuntu 16.04, CUDA 8</td><td>Python 3.13.15, CuPy 14.0.1</td></tr>
+        <tr><td><span class="en">Local correctness checks</span><span class="zh">本地正确性检查</span></td><td>—</td><td>Apple ARM64, NumPy 2.0.2</td></tr>
+        <tr><td><span class="en">Timing protocol</span><span class="zh">计时协议</span></td><td><span class="en">100 iterations</span><span class="zh">100 轮迭代</span></td><td><span class="en">100 Bellman sweeps, double, batch 64, same session</span><span class="zh">100 轮 Bellman sweep，double，batch 64，同一 session</span></td></tr>
+      </tbody></table></div>
+
+    <h3><span class="en">Commands</span><span class="zh">运行命令</span></h3>
+<pre><code>python3 -m unittest discover -s tests -v
+python3 run.py counts
+python3 run.py one   --life 2 --max-order 9 --backend cpu
+python3 run.py two   --case P1 --backend cuda --tol 1e-4
+python3 run.py bench --backend cuda --iters 100 --batch 64
+python3 run.py bench --backend cpu  --iters 100 --batch 64</code></pre>
+    <p class="muted en" style="font-size:15px">Executed Kaggle notebook: Perishable Inventory GPU Reproduction, saved version 356144063. All five unit tests pass: event probabilities sum to one, FIFO transitions behave as intended, Table 3 counts are reconstructed, the one-product paper value is recovered, and a small two-product instance agrees across implementations.</p>
+    <p class="muted zh" style="font-size:15px">已执行的 Kaggle notebook：Perishable Inventory GPU Reproduction，saved version 356144063。5 个单元测试全部通过：事件概率之和为 1、FIFO 转移正确、Table 3 状态数可重建、单商品论文值可恢复、小型双商品实例跨实现一致。</p>
+  </div>
+</div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section class="part" id="results">
+<div class="wrap">
+  <div class="part-head"><span class="n">4</span><h2><span class="en">Results</span><span class="zh">复现结果</span></h2></div>
+
+  <div class="two">
+    <div>
+      <h3 style="margin-top:0"><span class="en">One product (M=2, Q̄=9)</span><span class="zh">单商品（M=2，Q̄=9）</span></h3>
+      <div class="scroll"><table class="t">
+        <thead><tr><th><span class="en">Measure</span><span class="zh">指标</span></th><th><span class="en">Paper</span><span class="zh">论文</span></th><th><span class="en">Reproduction</span><span class="zh">复现</span></th></tr></thead>
+        <tbody>
+          <tr><td><span class="en">Average daily profit π</span><span class="zh">平均日利润 π</span></td><td>2.215</td><td class="hit">2.215160</td></tr>
+          <tr><td><span class="en">Largest order in policy</span><span class="zh">策略最大订货量</span></td><td>7</td><td class="hit">7</td></tr>
+          <tr><td><span class="en">Iterations to converge</span><span class="zh">收敛迭代数</span></td><td>12</td><td class="warn">14</td></tr>
+        </tbody></table></div>
+      <p class="muted en" style="font-size:14px;margin-top:8px">The 2-iteration gap is sensitive to initialisation and normalisation; the economically relevant π and policy limit agree.</p>
+      <p class="muted zh" style="font-size:14px;margin-top:8px">迭代数差 2，对初值和归一化方式敏感；经济上相关的 π 和策略上限一致。</p>
+    </div>
+    <div>
+      <h3 style="margin-top:0"><span class="en">Two products, P1 (GPU)</span><span class="zh">双商品 P1（GPU）</span></h3>
+      <div class="scroll"><table class="t">
+        <tbody>
+          <tr><td><span class="en">Convergence</span><span class="zh">收敛</span></td><td><span class="en">13 iterations, 2.8061 s</span><span class="zh">13 轮，2.8061 s</span></td></tr>
+          <tr><td><span class="en">π interval</span><span class="zh">π 区间</span></td><td>[4.5031745, 4.5032455]</td></tr>
+          <tr><td><span class="en">Midpoint</span><span class="zh">中点</span></td><td>4.5032100</td></tr>
+          <tr><td><span class="en">400k-day simulated profit</span><span class="zh">40 万天仿真利润</span></td><td>4.5041738</td></tr>
+          <tr><td><span class="en">Max CPU/GPU difference</span><span class="zh">CPU/GPU 最大差</span></td><td>7.11 × 10⁻¹⁵</td></tr>
+        </tbody></table></div>
+    </div>
+  </div>
+
+  <div class="widget">
+    <h4><span class="en">P1 waste: reproduction and paper nearly coincide</span><span class="zh">P1 损耗率：复现与论文几乎重合</span></h4>
+    <div class="sub"><span class="en">Waste as a percentage of total orders. Base-stock is the paper's best order-up-to rule (Sₐ=13, S_b=12).</span><span class="zh">损耗占总订货量的百分比。base-stock 为论文中 Sₐ=13、S_b=12 的最优补货规则。</span></div>
+    <svg id="wasteSvg" viewBox="0 0 680 220" role="img" aria-label="P1 waste comparison"></svg>
+    <div class="legend"><span><i style="background:var(--paper)"></i><span class="en">Paper base-stock</span><span class="zh">论文 base-stock</span></span><span><i style="background:var(--green)"></i><span class="en">Paper VI policy</span><span class="zh">论文 VI 策略</span></span><span><i style="background:var(--ours)"></i><span class="en">Reproduced VI policy</span><span class="zh">复现 VI 策略</span></span></div>
+  </div>
+
+  <div class="widget" id="bench">
+    <h4><span class="en">CPU / GPU: 100 Bellman sweeps</span><span class="zh">CPU / GPU：100 轮 Bellman sweep</span></h4>
+    <div class="ctrls"><span class="seg" id="bseg"><button aria-pressed="true" data-v="time"><span class="en">Runtime (log)</span><span class="zh">运行时间（对数）</span></button><button aria-pressed="false" data-v="speed"><span class="en">Speedup</span><span class="zh">加速比</span></button></span></div>
+    <svg id="benchSvg" viewBox="0 0 680 300" role="img" aria-label="Benchmark"></svg>
+    <div class="legend" id="benchLeg"></div>
+  </div>
+
+  <div class="prose">
+    <div class="scroll"><table class="t">
+      <thead><tr><th><span class="en">Case</span><span class="zh">实例</span></th><th><span class="en">States</span><span class="zh">状态数</span></th><th><span class="en">Paper CPU</span><span class="zh">论文 CPU</span></th><th><span class="en">Paper GPU</span><span class="zh">论文 GPU</span></th><th>Kaggle CPU</th><th>T4 GPU</th><th><span class="en">T4 speedup</span><span class="zh">T4 加速</span></th><th><span class="en">100-sweep π</span><span class="zh">100 轮 π</span></th></tr></thead>
+      <tbody>
+        <tr><td>P1</td><td>14,641</td><td>357.89</td><td>91.29</td><td>710.09</td><td>20.16</td><td>35.22×</td><td>4.5032031</td></tr>
+        <tr><td>P2</td><td>20,449</td><td>698.20</td><td>136.84</td><td>1,284.57</td><td>30.30</td><td>42.39×</td><td>5.0036025</td></tr>
+        <tr><td>P3</td><td>28,561</td><td>1,358.04</td><td>214.71</td><td>2,602.89</td><td>59.24</td><td>43.94×</td><td>5.5087173</td></tr>
+        <tr><td>P4</td><td>38,416</td><td>4,241.66</td><td>361.49</td><td>5,135.97</td><td>103.84</td><td>49.46×</td><td>6.5183400</td></tr>
+      </tbody></table></div>
+    <p class="muted en" style="font-size:14px;margin-top:8px">Times in seconds. All four π values sit below their upper bounds (μₐ+μ_b)×0.5 = 5, 5.5, 6, 7. The full notebook cell took 9,958.844 s, dominated by the four NumPy CPU runs.</p>
+    <p class="muted zh" style="font-size:14px;margin-top:8px">时间单位为秒。四个 π 都低于各自的理论上限 (μₐ+μ_b)×0.5 = 5、5.5、6、7。完整 notebook 耗时 9,958.844 s，主要花在四次 NumPy CPU 运行上。</p>
+    <div class="card y"><span class="lab"><span class="en">Remember</span><span class="zh">记住</span></span>
+      <p class="en">35–49× is the speedup of this implementation in one Kaggle session, not a cycle-for-cycle reproduction of the original experiment. The paper's baseline is optimised sequential C; the reproduction's is deliberately readable NumPy. What carries over is the trend: the larger the problem, the larger the GPU benefit.</p>
+      <p class="zh">35–49× 是“这个实现在一个 Kaggle session 上”的加速，不是对原实验的逐周期复现。论文基线是优化过的顺序 C，复现基线是刻意保持可读的 NumPy。可比的是趋势：问题越大，GPU 收益越大。</p></div>
+
+    <details class="quiz"><summary><span class="en">Quiz: Table 3 lists 20,449 states for P2. How should Q be read?</span><span class="zh">小测：Table 3 的 P2 是 20,449 个状态，Q 应该怎么理解？</span></summary>
+      <div class="ans en">20,449 = 11² × 13² = (11×13)², i.e. Qₐ=11 and Q_b=13 multiplied directly. If Q were a maximum, it would be (12×14)² = 28,224. So Q in Table 3 is the number of levels.</div>
+      <div class="ans zh">20,449 = 11² × 13² = (11×13)²，正好是 Qₐ=11、Q_b=13 直接相乘。若 Q 是最大订货量，应为 (12×14)² = 28,224。所以 Table 3 的 Q 是取值个数。</div></details>
+    <details class="quiz"><summary><span class="en">Quiz: why can the paper's P1 profit of 5.509 not be right?</span><span class="zh">小测：为什么论文的 P1 利润 5.509 不可能成立？</span></summary>
+      <div class="ans en">Each sale earns at most s − c = 0.5, and long-run total demand is μₐ + μ_b = 10 (substitution moves demand, it does not create it). The ceiling is 5.</div>
+      <div class="ans zh">每卖一件最多赚 s − c = 0.5，长期平均总需求是 μₐ + μ_b = 10（替代只转移需求，不创造需求），所以利润上限是 5。</div></details>
+    <details class="quiz"><summary><span class="en">Quiz: the reproduction's speedup (49×) is far above the paper's (11.7×). Why doesn't that mean a T4 is 4× faster than a K80?</span><span class="zh">小测：为什么复现的加速比（49×）比论文（11.7×）大得多，却不能说 T4 比 K80 快 4 倍？</span></summary>
+      <div class="ans en">The numerators differ: the paper's CPU code is -O3 C, the reproduction's is NumPy, itself roughly 1.2–2× slower. The denominators differ too: kernel design, batching and transfers all changed. The ratio mixes hardware, language and implementation effects.</div>
+      <div class="ans zh">分子不同：论文 CPU 是 -O3 的 C，复现 CPU 是 NumPy，后者本身就慢约 1.2–2 倍；分母也不同：kernel 设计、批处理和通信方式都变了。加速比混合了硬件、语言和实现三种差异。</div></details>
+  </div>
+</div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section class="part" id="concl">
+<div class="wrap">
+  <div class="part-head"><span class="n">5</span><h2><span class="en">Conclusions and outlook</span><span class="zh">结论与展望</span></h2></div>
+  <div class="prose">
+    <div class="card g"><span class="lab"><span class="en">Conclusion</span><span class="zh">复现结论</span></span>
+      <p class="en">The paper's central computational claim holds: value iteration for substitutable perishable products maps effectively to a GPU, and the benefit grows with problem size. The one-product value and policy limit were recovered, the P2–P4 state counts were reconstructed exactly, CPU and GPU values matched to floating-point precision, and P1 waste behaviour closely matched the paper.</p>
+      <p class="zh">论文的核心计算主张成立：可替代易腐商品的价值迭代可以有效映射到 GPU，且收益随问题规模增大。单商品的 π 与策略上限被恢复，P2–P4 状态数精确重建，CPU 与 GPU 数值一致到浮点精度，P1 损耗行为与论文高度吻合。</p>
+      <p class="en">The reproduction also surfaced several inconsistencies that materially affect interpretation. Recording those assumptions is what makes the results reproducible rather than merely similar.</p>
+      <p class="zh">同时，复现发现若干会实质影响解读的不一致。把这些假设记录下来，结果才是“可复现”，而不只是“看起来相似”。</p>
+    </div>
+
+    <h3><span class="en">Limitations</span><span class="zh">局限</span></h3>
+    <p class="en">The original code is unavailable and the author's response did not resolve the notation and value discrepancies. The P2–P4 counts and P1 waste rates strongly support the adopted interpretation, but cannot prove every low-level transition matches the unpublished implementation. The GPU backend uses generated array kernels rather than Algorithm 5's shared-memory reduction, and the CPU timing is a correctness baseline, not the best achievable CPU performance.</p>
+    <p class="zh">原始源码不可得，作者回复也没有解决记号和数值上的分歧。P2–P4 状态数和 P1 损耗率强力支持当前解释，但无法证明每个底层转移都与未公开实现一致。GPU 后端用的是生成的数组 kernel，而非 Algorithm 5 的 shared-memory 归约；CPU 计时只是正确性基线，不代表最快的 CPU 实现。</p>
+
+    <h3><span class="en">What the paper could improve</span><span class="zh">论文可以完善的地方</span></h3>
+    <p class="en">Add a symbol table separating the maximum quantity <span class="m">Q<sub>max</sub></span> from the number of levels <span class="m">L = Q<sub>max</sub>+1</span>, and write <span class="m">N = L<sub>a</sub><sup>M</sup>L<sub>b</sub><sup>M</sup></span> throughout; state the order of events within a day; run a truncation-sensitivity test with Q̄ = 7, 9, 11, 13; publish parameter files, initial values, the reference state, precision, block size, random seeds and source code; report max CPU/GPU error, action agreement and Bellman residual; and compare against optimised multithreaded C++, reporting kernel, transfer and full-convergence time separately with means and standard deviations over repeated runs.</p>
+    <p class="zh">增加符号表，区分最大数量 <span class="m">Q<sub>max</sub></span> 与等级数 <span class="m">L = Q<sub>max</sub>+1</span>，统一写作 <span class="m">N = L<sub>a</sub><sup>M</sup>L<sub>b</sub><sup>M</sup></span>；写明一天内的事件顺序；用 Q̄ = 7, 9, 11, 13 做截断敏感性分析；公开参数文件、初值、参考状态、精度、block 大小、随机种子和源码；同时报告 CPU/GPU 最大误差、动作一致率和 Bellman residual；用优化的多线程 C++ 作基线，分开报告 kernel、传输和完整收敛时间，并给出重复运行的均值与标准差。</p>
+
+    <h3><span class="en">Directions for extension</span><span class="zh">可以拓展的方向</span></h3>
+  </div>
+  <div class="two">
+    <div class="card b" style="margin:0"><span class="lab"><span class="en">Model</span><span class="zh">模型</span></span>
+      <p class="en">More products, different shelf lives, bidirectional or multi-level substitution; non-stationary and correlated demand; random lead times, supply disruptions, fixed ordering costs; markdowns for near-expiry stock as part of the action, giving joint inventory–pricing optimisation.</p>
+      <p class="zh">更多商品、不同保质期、双向或多级替代；非平稳与相关需求；随机交货期、供应中断、固定订货成本；把临期折扣并入动作，做库存—定价联合优化。</p></div>
+    <div class="card b" style="margin:0"><span class="lab"><span class="en">GPU method</span><span class="zh">GPU 方法</span></span>
+      <p class="en">Profile, then fuse operations, coalesce memory access and cut branching; partition states across GPUs; compare CuPy, a custom CUDA kernel, JAX, PyTorch and multicore CPU to separate hardware gains from implementation gains.</p>
+      <p class="zh">profile 后融合算子、合并访存、减少分支；按状态划分到多 GPU；对比 CuPy、自定义 CUDA kernel、JAX、PyTorch、多核 CPU，分清收益来自硬件还是实现。</p></div>
+  </div>
+  <div class="prose" style="margin-top:22px">
+    <div class="card o"><span class="lab"><span class="en">The most promising next step</span><span class="zh">最值得继续做的一件事</span></span>
+      <p class="en">Use exact CPU/GPU value iteration as ground truth and ask whether approximate dynamic programming or reinforcement learning can cut computation sharply as the state space grows, while keeping profit and waste close to optimal. Three kinds of experiment: accuracy (profit and policy gaps), scalability (products, shelf life, caps), and business metrics (profit, waste, stock-outs, compute time). This continues the paper's GPU theme and breaks its main limitation to small state spaces.</p>
+      <p class="zh">以精确的 CPU/GPU 价值迭代作为 ground truth，研究状态空间扩大后，近似动态规划或强化学习能否在大幅降低计算成本的同时，保持接近最优的利润与损耗率。实验分三类：精确性（利润与策略差异）、可扩展性（商品数、保质期、上限）、业务指标（利润、损耗、缺货、计算时间）。这既延续论文的 GPU 主题，也突破了它只能处理小状态空间的限制。</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="en">Original paper:</span><span class="zh">原论文：</span> Ortega G, Hendrix EMT, García I (2019). <a href="https://doi.org/10.1007/s11227-018-2692-z">doi:10.1007/s11227-018-2692-z</a>, CC BY 4.0. <span class="en">Reproduction and this page:</span><span class="zh">复现与本页：</span> Bin Zeng (Ben Tseng).
+  </div>
+</footer>
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const fmt=n=>n.toLocaleString('en-US');
+let LANG='en';
+try{const s=localStorage.getItem('pvi-lang');if(s==='en'||s==='zh')LANG=s;}catch(e){}
+const T=(en,zh)=>LANG==='zh'?zh:en;
+function seg(id,cb){const el=$(id);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset.v);});}
+
+/* ---------- FIFO ---------- */
+const I=[3,2,1];
+document.querySelectorAll('#fifo .stepper').forEach(st=>{
+  const i=+st.dataset.i,[m,v,p]=st.children;
+  m.onclick=()=>{I[i]=Math.max(0,I[i]-1);v.textContent=I[i];drawFifo();};
+  p.onclick=()=>{I[i]=Math.min(6,I[i]+1);v.textContent=I[i];drawFifo();};
+});
+['fd','fq'].forEach(id=>$('#'+id).addEventListener('input',drawFifo));
+function drawFifo(){
+  const d=+$('#fd').value,q=+$('#fq').value;$('#fdv').textContent=d;$('#fqv').textContent=q;
+  const rem=I.slice(),sold=[0,0,0];let left=d;
+  for(let r=0;r<3;r++){const s=Math.min(rem[r],left);sold[r]=s;rem[r]-=s;left-=s;}
+  const exp=rem[0],next=[rem[1],rem[2],q],totSold=d-left;
+  const S=18,G=4,base=212;let h='';
+  const colX=[30,95,160],nX=[420,485,550];
+  h+=`<text x="30" y="20" font-size="14" font-weight="600" fill="var(--ink)">${T('Today','今天')}</text><text x="420" y="20" font-size="14" font-weight="600" fill="var(--ink)">${T('Tomorrow morning','明天早上')}</text>`;
+  const ages=LANG==='zh'?['剩1天','剩2天','剩3天']:['1 day','2 days','3 days'];
+  ages.forEach((t,k)=>{h+=`<text x="${colX[k]+S/2}" y="236" font-size="12" text-anchor="middle" fill="var(--muted)">${t}</text><text x="${nX[k]+S/2}" y="236" font-size="12" text-anchor="middle" fill="var(--muted)">${t}</text>`;});
+  for(let r=0;r<3;r++)for(let u=0;u<I[r];u++){
+    const y=base-(u+1)*(S+G)+G;let st;
+    if(u<sold[r])st='fill="var(--sold)"';else if(r===0)st='fill="var(--red)"';else st='fill="none" stroke="var(--muted)" stroke-width="1.5"';
+    h+=`<rect x="${colX[r]}" y="${y}" width="${S}" height="${S}" rx="3" ${st}/>`;
+  }
+  for(let r=0;r<3;r++)for(let u=0;u<next[r];u++){
+    const y=base-(u+1)*(S+G)+G;
+    const st=r===2?'fill="var(--orange)"':'fill="none" stroke="var(--muted)" stroke-width="1.5"';
+    h+=`<rect x="${nX[r]}" y="${y}" width="${S}" height="${S}" rx="3" ${st}/>`;
+  }
+  h+=`<path d="M${colX[1]+S+40} 120 C 300 60, 360 60, ${nX[0]-6} 110" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;
+  h+=`<text x="300" y="58" font-size="12" text-anchor="middle" fill="var(--muted)">${T('each item ages one day','年龄减一天')}</text>`;
+  h+=`<text x="300" y="150" font-size="13" text-anchor="middle" fill="var(--ink)">I = (${I.join(', ')})</text><text x="300" y="172" font-size="13" text-anchor="middle" fill="var(--ink)">→ I′ = (${next.join(', ')})</text>`;
+  $('#fifoSvg').innerHTML=h;
+  const profit=(totSold-0.5*q).toFixed(1);
+  $('#fifoOut').innerHTML=LANG==='zh'
+    ?`卖出 <b>${totSold}</b> 件${left>0?`（缺货 <b>${left}</b> 件）`:''}，今晚过期 <b>${exp}</b> 件，明天库存 <b>I′ = (${next.join(', ')})</b>。当天利润 s·销量 − c·q = ${totSold} − 0.5×${q} = <b>${profit}</b>（s=1, c=0.5）。`
+    :`Sold <b>${totSold}</b>${left>0?` (<b>${left}</b> short)`:''}, <b>${exp}</b> expire tonight, tomorrow's stock <b>I′ = (${next.join(', ')})</b>. Today's profit s·sales − c·q = ${totSold} − 0.5×${q} = <b>${profit}</b> (s=1, c=0.5).`;
+}
+
+/* ---------- state space ---------- */
+let P=2,M=2;
+seg('#sp',v=>{P=+v;drawSpace();});seg('#sm',v=>{M=+v;drawSpace();});
+$('#sq').addEventListener('input',drawSpace);
+const sup=e=>String(e).replace(/\d/g,c=>'⁰¹²³⁴⁵⁶⁷⁸⁹'[c]);
+function drawSpace(){
+  const Q=+$('#sq').value;$('#sqv').textContent=Q;
+  const N=Math.pow(Q+1,M*P),A=Math.pow(Q+1,P);
+  const lo=1,hi=13,x0=20,x1=660,X=v=>x0+(Math.log10(v)-lo)/(hi-lo)*(x1-x0);
+  let h=`<line x1="${x0}" y1="60" x2="${x1}" y2="60" stroke="var(--rule)" stroke-width="10" stroke-linecap="round"/>`;
+  for(let e=lo;e<=hi;e+=2)h+=`<text x="${X(10**e)}" y="110" font-size="11" text-anchor="middle" fill="var(--muted)">10${sup(e)}</text>`;
+  const marks=[[121,'121 · 0.03 s'],[14641,'14,641 · 2 min'],[117649,'117,649 · 99 min'],[16777216,T('16.8M · not solved','16.8M · 无法求解')]];
+  marks.forEach(([v,t],k)=>{const x=X(v);h+=`<line x1="${x}" y1="50" x2="${x}" y2="70" stroke="var(--paper)" stroke-width="2"/><text x="${x}" y="${k%2?88:40}" font-size="11" text-anchor="middle" fill="var(--paper)">${t}</text>`;});
+  const xn=Math.min(X(N),x1);
+  h+=`<line x1="${x0}" y1="60" x2="${xn}" y2="60" stroke="var(--blue)" stroke-width="10" stroke-linecap="round"/><circle cx="${xn}" cy="60" r="8" fill="var(--blue)"/>`;
+  $('#spaceSvg').innerHTML=h;
+  const work=N*A,ws=work>=1e9?(work/1e9).toFixed(1)+' × 10⁹':fmt(work);
+  $('#spaceOut').innerHTML=LANG==='zh'
+    ?`状态数 N = (${Q}+1)<sup>${M*P}</sup> = <b>${fmt(N)}</b>；每个状态的订货组合 ${fmt(A)} 个；每轮仅“状态 × 动作”就有 <b>${ws}</b> 次期望计算，还要再乘需求事件数和迭代轮数。`
+    :`States N = (${Q}+1)<sup>${M*P}</sup> = <b>${fmt(N)}</b>; ${fmt(A)} order combinations per state; <b>${ws}</b> expectations per sweep from states × actions alone, before multiplying by demand events and sweeps.`;
+}
+
+/* ---------- substitution ---------- */
+['by','bd','bg'].forEach(id=>$('#'+id).addEventListener('input',drawSubst));
+function comb(n,k){let r=1;for(let i=1;i<=k;i++)r=r*(n-k+i)/i;return r;}
+function drawSubst(){
+  const y=+$('#by').value,d=+$('#bd').value,g=+$('#bg').value;
+  $('#byv').textContent=y;$('#bdv').textContent=d;$('#bgv').textContent=g.toFixed(2);
+  const x=Math.max(d-y,0);let h='';
+  if(x===0){h=`<text x="340" y="100" text-anchor="middle" font-size="15" fill="var(--muted)">${T('B demand fits within stock: no shortfall, so no substitution','B 需求不超过库存：没有缺货，也就没有替代')}</text>`;$('#substSvg').innerHTML=h;$('#substOut').innerHTML=T(`B shortfall x = max(${d} − ${y}, 0) = 0.`,`B 缺口 x = max(${d} − ${y}, 0) = 0。`);return;}
+  const p=[];for(let u=0;u<=x;u++)p.push(comb(x,u)*g**u*(1-g)**(x-u));
+  const mx=Math.max(...p),W=620/(x+1),bw=Math.min(W*0.7,46);
+  p.forEach((v,u)=>{const bh=mx>0?v/mx*130:0,cx=40+u*W+W/2;
+    h+=`<rect x="${cx-bw/2}" y="${165-bh}" width="${bw}" height="${bh}" rx="2" fill="var(--green)"/>`;
+    h+=`<text x="${cx}" y="183" font-size="12" text-anchor="middle" fill="var(--muted)">${u}</text>`;
+    if(x<=10)h+=`<text x="${cx}" y="${160-bh}" font-size="11" text-anchor="middle" fill="var(--ink)">${(v*100).toFixed(0)}%</text>`;});
+  h+=`<text x="40" y="198" font-size="11" fill="var(--muted)">${T('customers switching to A, u','转买 A 的人数 u')}</text>`;
+  $('#substSvg').innerHTML=h;
+  $('#substOut').innerHTML=T(`B shortfall x = ${d} − ${y} = <b>${x}</b>; u ~ Binomial(${x}, ${g.toFixed(2)}), adding <b>${(x*g).toFixed(2)}</b> units of A demand on average.`,`B 缺口 x = ${d} − ${y} = <b>${x}</b>；u ~ Binomial(${x}, ${g.toFixed(2)})，平均多出 <b>${(x*g).toFixed(2)}</b> 件 A 的需求。`);
+}
+
+/* ---------- CUDA diagram fill ---------- */
+(function(){let h='';for(let a=0;a<5;a++)for(let b=0;b<5;b++){const on=a===2&&b===3;h+=`<rect x="${24+b*34}" y="${40+a*34}" width="28" height="28" rx="4" fill="${on?'var(--blue)':'var(--panel)'}" stroke="${on?'var(--blue)':'var(--rule)'}"/>`;}
+$('#gridBlocks').innerHTML=h;
+let t='';for(let i=0;i<14;i++)t+=`<rect x="${282+i*16}" y="96" width="12" height="40" rx="2" fill="${i<11?'var(--blue)':'none'}" stroke="var(--blue)" opacity="${i<11?0.8:0.5}"/>`;
+$('#thr').innerHTML=t;})();
+
+/* ---------- breakdown ---------- */
+(function(){const rows=[['P1',43.75,23.62,32.63],['P2',49.18,17.06,33.76],['P3',52.16,20.32,27.52],['P4',59.62,15.69,24.69]];
+let h='';rows.forEach((r,i)=>{const y=14+i*44;let x=60;const c=['var(--blue)','var(--orange)','var(--paper)'];
+h+=`<text x="20" y="${y+21}" font-size="13" fill="var(--ink)">${r[0]}</text>`;
+for(let k=0;k<3;k++){const w=r[k+1]/100*600;h+=`<rect x="${x}" y="${y}" width="${w}" height="30" fill="${c[k]}"/>`;if(w>40)h+=`<text x="${x+w/2}" y="${y+20}" font-size="12" text-anchor="middle" fill="#fff">${r[k+1].toFixed(1)}%</text>`;x+=w;}});
+$('#breakSvg').innerHTML=h;})();
+
+/* ---------- profit ---------- */
+function drawProfit(){const rows=[[T('Paper base-stock (sim.)','论文 base-stock（仿真）'),4.479,'var(--paper)',3],[T('Paper VI policy','论文 VI 策略'),5.509,'var(--red)',3],[T('Reproduced VI (π midpoint)','复现 VI（π 中点）'),4.50321,'var(--ours)',4],[T('Reproduced VI (400k-day sim.)','复现 VI（40 万天仿真）'),4.50417,'var(--ours)',4]];
+const X=v=>210+v/6*440;let h='';
+rows.forEach((r,i)=>{const y=16+i*42;h+=`<text x="200" y="${y+19}" font-size="13" text-anchor="end" fill="var(--ink)">${r[0]}</text><rect x="210" y="${y}" width="${X(r[1])-210}" height="26" rx="3" fill="${r[2]}"/><text x="${X(r[1])+6}" y="${y+18}" font-size="13" fill="var(--ink)">${r[1].toFixed(r[3])}</text>`;});
+const x5=X(5);h+=`<line x1="${x5}" y1="6" x2="${x5}" y2="182" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${x5}" y="200" font-size="12" text-anchor="middle" fill="var(--ink)">${T('upper bound 5','理论上限 5')}</text>`;
+$('#profitSvg').innerHTML=h;}
+
+/* ---------- waste ---------- */
+function drawWaste(){const g=[[T('Product A','商品 A'),[6.26,5.97,6.0019]],[T('Product B','商品 B'),[5.23,4.14,4.1794]]],c=['var(--paper)','var(--green)','var(--ours)'];
+const Y=v=>190-v/7*160;let h='';
+for(let t=0;t<=6;t+=2)h+=`<line x1="50" x2="660" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--rule)"/><text x="42" y="${Y(t)+4}" font-size="11" text-anchor="end" fill="var(--muted)">${t}%</text>`;
+g.forEach((gr,i)=>{const gx=110+i*300;gr[1].forEach((v,k)=>{const x=gx+k*62;h+=`<rect x="${x}" y="${Y(v)}" width="50" height="${190-Y(v)}" rx="2" fill="${c[k]}"/><text x="${x+25}" y="${Y(v)-6}" font-size="12" text-anchor="middle" fill="var(--ink)">${v.toFixed(2)}%</text>`;});
+h+=`<text x="${gx+87}" y="210" font-size="13" text-anchor="middle" fill="var(--ink)">${gr[0]}</text>`;});
+$('#wasteSvg').innerHTML=h;}
+
+/* ---------- bench ---------- */
+const B={cases:['P1','P2','P3','P4'],pc:[357.89,698.20,1358.04,4241.66],pg:[91.29,136.84,214.71,361.49],kc:[710.09,1284.57,2602.89,5135.97],kg:[20.16,30.30,59.24,103.84],psub:[351.31/39.94,688.71/67.29,1344.82/111.99,4217.15/215.54]};
+let benchMode='time';
+function drawBench(){let h='';const L=60,R=660,T0=20,Bm=250;let ser;
+if(benchMode==='time'){
+  const Y=v=>Bm-(Math.log10(v)-1)/3*(Bm-T0);
+  [10,100,1000,10000].forEach(t=>{h+=`<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--rule)"/><text x="${L-8}" y="${Y(t)+4}" font-size="11" text-anchor="end" fill="var(--muted)">${fmt(t)} s</text>`;});
+  ser=[[B.pc,'var(--paper)',T('Paper CPU (C)','论文 CPU（C）')],[B.pg,'var(--green)',T('Paper GPU (K80)','论文 GPU（K80）')],[B.kc,'#8E9BB0',T('Reproduction CPU (NumPy)','复现 CPU（NumPy）')],[B.kg,'var(--ours)',T('Reproduction GPU (T4)','复现 GPU（T4）')]];
+  B.cases.forEach((c,i)=>{const gx=L+20+i*150;ser.forEach((s,k)=>{const v=s[0][i],x=gx+k*28;h+=`<rect x="${x}" y="${Y(v)}" width="24" height="${Bm-Y(v)}" rx="2" fill="${s[1]}"/>`;});h+=`<text x="${gx+54}" y="270" font-size="13" text-anchor="middle" fill="var(--ink)">${c}</text>`;});
+}else{
+  const Y=v=>Bm-v/55*(Bm-T0);
+  [0,10,20,30,40,50].forEach(t=>{h+=`<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--rule)"/><text x="${L-8}" y="${Y(t)+4}" font-size="11" text-anchor="end" fill="var(--muted)">${t}×</text>`;});
+  ser=[[B.pc.map((v,i)=>v/B.pg[i]),'var(--green)',T('Paper, overall','论文整体')],[B.psub,'var(--orange)',T('Paper, substitution part','论文替代部分')],[B.kc.map((v,i)=>v/B.kg[i]),'var(--ours)',T('Reproduction, overall (T4)','复现整体（T4）')]];
+  B.cases.forEach((c,i)=>{const gx=L+28+i*150;ser.forEach((s,k)=>{const v=s[0][i],x=gx+k*34;h+=`<rect x="${x}" y="${Y(v)}" width="28" height="${Bm-Y(v)}" rx="2" fill="${s[1]}"/><text x="${x+14}" y="${Y(v)-5}" font-size="11" text-anchor="middle" fill="var(--ink)">${v.toFixed(1)}</text>`;});h+=`<text x="${gx+48}" y="270" font-size="13" text-anchor="middle" fill="var(--ink)">${c}</text>`;});
+}
+$('#benchSvg').innerHTML=h;$('#benchLeg').innerHTML=ser.map(s=>`<span><i style="background:${s[1]}"></i>${s[2]}</span>`).join('');}
+seg('#bseg',v=>{benchMode=v;drawBench();});
+
+/* ---------- table 3 ---------- */
+const T3=[['P1',5,5,11,11,14461],['P2',5,6,11,13,20449],['P3',6,6,13,13,28561],['P4',7,7,14,14,38416]];
+let t3Mode='cnt';
+function drawT3(){const mode=t3Mode;let h=`<thead><tr><th>${T('Case','实例')}</th><th>μₐ, μ_b</th><th>${T('Table Qₐ, Q_b','表中 Qₐ, Q_b')}</th><th>${T('Table N','表中 N')}</th><th>${T('N under this reading','按此解释计算的 N')}</th><th>${T('Match','是否吻合')}</th></tr></thead><tbody>`;let hits=0;
+T3.forEach(r=>{const n=mode==='max'?((r[3]+1)*(r[4]+1))**2:(r[3]*r[4])**2;const ok=n===r[5];const near=!ok&&mode==='cnt';if(ok)hits++;
+h+=`<tr><td>${r[0]}</td><td>${r[1]}, ${r[2]}</td><td>${r[3]}, ${r[4]}</td><td>${fmt(r[5])}</td><td>${fmt(n)}</td><td class="${ok?'hit':near?'warn':'miss'}">${ok?T('✓ match','✓ 一致'):near?T('≈ digits transposed','≈ 数字换位'):'✗'}</td></tr>`;});
+$('#t3tab').innerHTML=h+'</tbody>';
+$('#t3note').textContent=mode==='max'?T(`Using the text's definition (Q+1): ${hits}/4 match.`,`按正文定义 (Q+1)，${hits}/4 吻合。`):T('Reading Q as the number of levels, P2–P4 match exactly and P1 differs only by a transposed 4 and 6.','按“取值个数”解释，P2–P4 全部精确吻合，P1 只差 4 与 6 的位置。');}
+seg('#t3seg',v=>{t3Mode=v;drawT3();});
+
+/* ---------- language ---------- */
+function setLang(l){LANG=l;document.documentElement.dataset.lang=l;document.documentElement.lang=l==='zh'?'zh-CN':'en';
+  document.title=l==='zh'?'GPU 价值迭代与易腐库存：论文解读、Typos 与复现':'GPU Value Iteration for Perishable Inventory: Reading, Typos and Reproduction';
+  document.querySelectorAll('.lang button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.l===l));
+  try{localStorage.setItem('pvi-lang',l);}catch(e){}
+  drawFifo();drawSpace();drawSubst();drawProfit();drawWaste();drawBench();drawT3();}
+document.querySelector('.lang').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setLang(b.dataset.l);});
+setLang(LANG);
+
+/* ---------- nav highlight ---------- */
+const links=[...document.querySelectorAll('nav.top a[href^="#"]:not(.brand)')];
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));});},{rootMargin:'-40% 0px -55% 0px'});
+links.forEach(a=>{const s=document.querySelector(a.getAttribute('href'));if(s)io.observe(s);});
+})();
+</script>
+</body>
+</html>
